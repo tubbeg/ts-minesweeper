@@ -1,11 +1,8 @@
 import * as React from "react"
 import { createRoot } from 'react-dom/client'
-import { makeBoard } from "./board"
+import { makeWorld, systemUpdate } from "./board"
+import { number } from "prop-types";
 
-
-function stuff (x : number,y : number) {
-    
-}
 
 type TUpdateState = (x:number,y:number) => void;
 
@@ -49,11 +46,17 @@ function updateStateFunction (x:number,y:number){
 
 export default function MyApp() {
     const myBool = true
-    const myBoard = makeBoard(5,5)
+    const [world, setWorld]  = React.useState(makeWorld(10,10))
+    const u = (x: number,y: number) => {
+        const updatedWorld = systemUpdate(x,y,world)
+        console.log(updatedWorld)
+        setWorld(updatedWorld)
+    }
     return (
         <div className="centerDiv">
         <h1 className="box h2 has-text-primary"> Minesweeper</h1>
-        {reactTable(8,8,updateStateFunction)}
+        <div className="box"><button className="button">Restart</button></div>
+        {reactTable(8,8,u)}
         </div>
     )
 }
