@@ -1,0 +1,11 @@
+
+.centerDiv {
+
+    max-width: fit-content;
+    margin-inline: auto;
+  }
+
+
+.h2 {
+    font-size: 1.875em; /* 30px/16=1.875em */
+  }
