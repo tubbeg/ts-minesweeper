@@ -140,7 +140,7 @@ function addEmptyCells (w : World<Entity>){
 }
 
 function addCellEntities (p : PositionComp,difficulty : number,w : World<Entity>){
-    const m = addRandomMines(difficulty,w)
+    const m = addRandomMines(p,difficulty,w)
     return addEmptyCells(m)
 }
 

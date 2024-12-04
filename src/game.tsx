@@ -169,22 +169,22 @@ function worldToReact (w : World<Entity>){
     return arr
 }
 
-const defaultDifficulty = 5
+const defaultDifficulty = 40
 
 const defaultPos = {x: 0 , y: 0}
 
 export default function MyApp() {
     const [a,b] = [10,10]
     const d = defaultDifficulty
-    //const [gameState, setGameState]  = React.useState({hasStarted: false})
+    const [gameState, setGameState]  = React.useState({hasStarted: false})
     const [state, setState]  = React.useState({world: makeWorld(defaultPos,d,a,b)})
     const u = (x: number,y: number) => {
         let w = state.world
-        /*if (!(gameState.hasStarted))
+        if (!(gameState.hasStarted))
         {
             w = makeWorld({x: x,y:y}, d, a,b)
             setGameState((s) => {return {hasStarted:true}})
-        }*/
+        }
         const updatedWorld = systemUpdate(x,y,w)
         console.log(updatedWorld)
         setState((s) => {return {world: updatedWorld}})

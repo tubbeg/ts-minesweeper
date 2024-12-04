@@ -2,6 +2,7 @@ import { PositionComp, Entity } from "./types";
 import { Option } from "effect";
 import { queryBoard } from "./query";
 import { World } from "miniplex";
+import { positive } from "effect/Schema";
 
 function getRand(max:number) {
     return Math.floor(Math.random() * max);
@@ -36,26 +37,31 @@ function getRandomUniquePosition (x:number,y:number, l : Array<PositionComp>){
 }
 
 
-function getRandomPositions (x:number,y:number, nr : number){
+function getRandomPositions (init : PositionComp, x:number,y:number, nr : number){
     let l : Array<PositionComp> = []
     let p : Option.Option<PositionComp> = Option.none()
-    while (l.length < nr){
-        p = getRandomUniquePosition(x,y,l)
-        if (Option.isNone(p))
-            return l
-        else
-            l.push(p.value)
+    if (nr > 0){
+        while (l.length < (nr - 1)){
+            p = getRandomUniquePosition(x,y,l)
+            if (Option.isNone(p))
+                break;
+            else
+            {
+                if (!(posIsEqual(p.value,init)))
+                    l.push(p.value)
+            }
+        }
     }
     return l
 }
 
 
-export function addRandomMines(difficulty: number, w : World<Entity>){
+export function addRandomMines(init:PositionComp,difficulty: number, w : World<Entity>){
     const bo = queryBoard(w)
     Option.map(bo, board => {
         const [x,y] = [board?.size.a,board?.size.b]
         if (x != null && y != null){
-            const pos = getRandomPositions(x,y,difficulty)
+            const pos = getRandomPositions(init,x,y,difficulty)
             pos.forEach(p => {
                 w.add({mine: "mine", invisible: "invisible", position: p})
             })
