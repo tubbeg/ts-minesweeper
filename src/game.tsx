@@ -8,7 +8,10 @@ import { queryMinedCells, MineQuery, isInvisible, isMine, queryBoard, isFlagged,
 import { posIsEqual } from "./random";
 import {Option} from "effect"
 
-type TUpdateState = (x:number,y:number) => void;
+type MSEvent =
+    | "INSPECT"
+    | "FLAG"
+type TUpdateState = (ev : MSEvent,x:number,y:number) => void;
 
 type ReactCellType =
     | "?"
@@ -82,8 +85,14 @@ function cellStateToText (r: ReactWorld,x:number,y:number) : string{
 
 
 function createCellTD (r : ReactWorld, x : number, y : number, cellCb : TUpdateState){
+    const msToEvent = (e : React.MouseEvent<HTMLButtonElement, MouseEvent>) => {
+        let ev : MSEvent = "FLAG"
+        if (e.detail == 2)
+            ev = "INSPECT"
+        cellCb(ev,x,y)
+    }
     return (<td key={"uniqueId" + x.toString() + y.toString()} >
-            <button onClick={(_) => {cellCb(x,y)}} className={cellStateToClass(r,x,y)}>
+            <button onClick={msToEvent} className={cellStateToClass(r,x,y)}>
                 {cellStateToText(r,x,y)}
             </button>
         </td>)
@@ -169,7 +178,7 @@ function worldToReact (w : World<Entity>){
     return arr
 }
 
-const defaultDifficulty = 40
+const defaultDifficulty = 30
 
 const defaultPos = {x: 0 , y: 0}
 
@@ -178,21 +187,30 @@ export default function MyApp() {
     const d = defaultDifficulty
     const [gameState, setGameState]  = React.useState({hasStarted: false})
     const [state, setState]  = React.useState({world: makeWorld(defaultPos,d,a,b)})
-    const u = (x: number,y: number) => {
+    const u = (ev : MSEvent, x: number,y: number) => {
         let w = state.world
-        if (!(gameState.hasStarted))
-        {
+        if (!(gameState.hasStarted) && (ev == "INSPECT")){
             w = makeWorld({x: x,y:y}, d, a,b)
+            setState((s) => {return {world: (systemUpdate(x,y,w))}})
             setGameState((s) => {return {hasStarted:true}})
         }
-        const updatedWorld = systemUpdate(x,y,w)
-        console.log(updatedWorld)
-        setState((s) => {return {world: updatedWorld}})
+        if (gameState.hasStarted)
+        {
+            const updatedWorld = systemUpdate(x,y,w)
+            console.log(updatedWorld)
+            setState((s) => {return {world: updatedWorld}})
+        }
+    }
+    const restart = () => {
+        setGameState((s) => {return {hasStarted:false}})
+        const w = {world: makeWorld(defaultPos,d,a,b)}
+        setState((s) => {return w})
     }
     return (
         <div className="centerDiv">
         <h1 className="box h2 has-text-primary"> Minesweeper</h1>
-        <div className="box"><button className="button">Restart</button></div>
+        <h1 className="box">Instructions: Click on a cell to flag it. Double click to inspect!</h1>
+        <div className="box"><button onClick={(_) => {restart()}} className="button">Restart</button></div>
         {reactTable(worldToReact(state.world),a,b,u)}
         </div>
     )

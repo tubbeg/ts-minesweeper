@@ -3,35 +3,8 @@ import {Option} from "effect"
 import { Size } from "fast-check"
 import {Entity, PositionComp} from "./types"
 import { isFlagged, isMine, isInvisible, queryBoard, queryFlaggedCells, queryInvisibleCells, queryMinedCells, queryEmptyCells, queryAllCells, queryEmptyVisibleCells, queryEmptyHiddenCells, OptCollEmptyPos, EmptyPos } from "./query"
-import {addRandomMines, posIsEqual} from "./random"
+import {addRandomMines, isNeighbour, posIsEqual} from "./random"
 
-function isNeighbour(p1 : PositionComp, p2 : PositionComp) : boolean{
-    let xn1a = {x: p1.x - 1, y: p1.y}
-    let xn1b = {x: p1.x - 1, y: p1.y + 1}
-    let xn1c = {x: p1.x - 1, y: p1.y - 1}
-    let xp1a = {x: p1.x + 1, y: p1.y}
-    let xp1b = {x: p1.x + 1, y: p1.y + 1}
-    let xp1c = {x: p1.x + 1, y: p1.y - 1}
-    let yp1 = {x: p1.x, y: p1.y + 1}
-    let yn1 = {x: p1.x, y: p1.y - 1}
-    if (posIsEqual(xn1a,p2))
-        return true
-    if (posIsEqual(xn1b,p2))
-        return true
-    if (posIsEqual(xn1c,p2))
-        return true
-    if (posIsEqual(xp1a,p2))
-        return true
-    if (posIsEqual(xp1b,p2))
-        return true
-    if (posIsEqual(xp1c,p2))
-        return true
-    if (posIsEqual(yp1,p2))
-        return true
-    if (posIsEqual(yn1,p2))
-        return true
-    return false
-}
 
 function isCell(c : With<Entity, "position" | "invisible">) : boolean{
     return (c.empty != null || c.flag != null || c.mine != null)
@@ -47,6 +20,28 @@ function filterInvisibleNonMinesNeighbours (p : PositionComp,c : Array<With<Enti
     return f.filter((e2) => {return isNotMine(e2)})
 }
 
+type EntMine = With<Entity, "position" | "mine">[]
+
+function changeVisibilityNeighbours
+(el : With<Entity, "position" | "invisible">, p : PositionComp, m : EntMine,w : World<Entity>){
+    const i = queryInvisibleCells(w)
+    if (el.mine == null)
+    {
+        Option.map(i, iu => {
+            const n = filterInvisibleNonMinesNeighbours(p, iu)
+            n.forEach((neighbour) => {
+                let n = getMineNeighbours(neighbour.position, m)
+                if (n > 0)
+                    w.addComponent(neighbour, "proxy",n)
+                else{
+                    const pn = neighbour.position
+                    changeVisibility(pn.x, pn.y, w)
+                }
+            })
+        })
+    }
+}
+
 //RECURSIVE
 //NOTE! There's a lot of potential problems that can occur here
 //I should be using labels and infinite loop instead of doing
@@ -54,24 +49,19 @@ function filterInvisibleNonMinesNeighbours (p : PositionComp,c : Array<With<Enti
 function changeVisibility (x:number,y:number,world : World<Entity>){
     const invis = queryInvisibleCells(world)
     const p  = {x: x, y: y}
-    Option.map(invis, inv => {
-        const el = inv.find((e) => {return posIsEqual(e.position, p)})
-        if (el != null)
-        {
-            if (isCell(el)){
-                world.removeComponent(el, "invisible")
-                const invisUpdate = queryInvisibleCells(world)
-                if (el.mine == null){
-                    Option.map(invisUpdate, iu => {
-                        const n = filterInvisibleNonMinesNeighbours(p, iu)
-                        n.forEach((neighbour) => {
-                            const pn = neighbour.position
-                            changeVisibility(pn.x, pn.y, world)
-                        })
-                    })
+
+    Option.map(queryMinedCells(world), mined => {
+        Option.map(invis, inv => {
+            const el = inv.find((e) => {return posIsEqual(e.position, p)})
+            if (el != null)
+            {
+                if (isCell(el)){
+                    world.removeComponent(el, "invisible")
+                    const invisUpdate = queryInvisibleCells(world)
+                    changeVisibilityNeighbours(el, p, mined, world)
+                    }
                 }
-            }
-        }
+            })
     })
     return world
 }

@@ -4,6 +4,34 @@ import { queryBoard } from "./query";
 import { World } from "miniplex";
 import { positive } from "effect/Schema";
 
+export function isNeighbour(p1 : PositionComp, p2 : PositionComp) : boolean{
+    let xn1a = {x: p1.x - 1, y: p1.y}
+    let xn1b = {x: p1.x - 1, y: p1.y + 1}
+    let xn1c = {x: p1.x - 1, y: p1.y - 1}
+    let xp1a = {x: p1.x + 1, y: p1.y}
+    let xp1b = {x: p1.x + 1, y: p1.y + 1}
+    let xp1c = {x: p1.x + 1, y: p1.y - 1}
+    let yp1 = {x: p1.x, y: p1.y + 1}
+    let yn1 = {x: p1.x, y: p1.y - 1}
+    if (posIsEqual(xn1a,p2))
+        return true
+    if (posIsEqual(xn1b,p2))
+        return true
+    if (posIsEqual(xn1c,p2))
+        return true
+    if (posIsEqual(xp1a,p2))
+        return true
+    if (posIsEqual(xp1b,p2))
+        return true
+    if (posIsEqual(xp1c,p2))
+        return true
+    if (posIsEqual(yp1,p2))
+        return true
+    if (posIsEqual(yn1,p2))
+        return true
+    return false
+}
+
 function getRand(max:number) {
     return Math.floor(Math.random() * max);
 }
@@ -36,18 +64,23 @@ function getRandomUniquePosition (x:number,y:number, l : Array<PositionComp>){
     return Option.none()
 }
 
+function isOkMine(init:PositionComp, compare: PositionComp){
+    const n  = isNeighbour(init, compare)
+    const e = posIsEqual(init,compare)
+    return ((!n) && (!e))
+}
 
 function getRandomPositions (init : PositionComp, x:number,y:number, nr : number){
     let l : Array<PositionComp> = []
     let p : Option.Option<PositionComp> = Option.none()
     if (nr > 0){
-        while (l.length < (nr - 1)){
+        while (l.length < (nr - 8)){
             p = getRandomUniquePosition(x,y,l)
             if (Option.isNone(p))
                 break;
             else
             {
-                if (!(posIsEqual(p.value,init)))
+                if (isOkMine(p.value,init))
                     l.push(p.value)
             }
         }
