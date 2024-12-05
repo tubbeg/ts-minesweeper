@@ -1,7 +1,9 @@
-import { Entity, PositionComp } from "./types"
+import { Entity, PositionComp, StateComp } from "./types"
 import {World, With, Query} from "miniplex"
-import { Option } from "effect"
 import { posIsEqual } from "./random"
+
+
+type W = World<Entity>
 
 //I suspect that running these functions each
 //time might come at a performance penalty
@@ -10,152 +12,186 @@ import { posIsEqual } from "./random"
 //the UI only needs to update on user events (mouse clicking)
 //which is quite slow
 
-export function queryAllCells (w : World<Entity>){
+export function queryAllCells (w : W){
     const result = w.with("position")
-    if (result.entities.length > 0)
-        return Option.some(result.entities)
-    return Option.none()
+    return result.entities
 }
 
-export function queryEmptyCells (w : World<Entity>){
+export function queryEmptyCells (w : W){
     const result = w.with("position", "empty")
-    if (result.entities.length > 0)
-        return Option.some(result.entities)
-    return Option.none()
+    return result.entities
+
 }
 
-export type MineQuery = Query<With<Entity, "position" | "mine">>
+export type StateCompOption =
+    | "NONE"
+    | {some: StateComp}
 
-export function queryMinedCells (w : World<Entity>){
+export function queryGameState (w : W) : StateCompOption {
+    const result = w.with("state")
+    let ret : StateCompOption = "NONE"
+    if (result.entities.length > 0)
+    {
+        if (result.entities[0] != null)
+            ret = {some: result.entities[0].state}
+    }
+    return ret
+}
+
+
+export type GameStateEntityOption =
+    | "NONE"
+    | {some:With<Entity, "state">}
+
+
+export function getGameStateEntity (w : W){
+
+    let ret : GameStateEntityOption = "NONE"
+    const result = w.with("state")
+    if (result.entities.length > 0)
+    {
+        const s = result.entities[0]
+        if (s != null)
+            ret = {some:s}
+    }
+    return ret
+}
+
+type MineEntities = Array<With<Entity, "position" | "mine">>
+
+export function queryMinedCells (w : W) : MineEntities{
     const result = w.with("position", "mine")
-    if (result.entities.length > 0)
-        return Option.some(result.entities)
-    return Option.none()
+    return result.entities
 }
 
-export function queryFlaggedCells (w : World<Entity>){
+export function queryFlaggedCells (w : W){
     const result = w.with("position", "flag")
-    if (result.entities.length > 0)
-        return Option.some(result.entities)
-    return Option.none()
+    return result.entities
 }
 
-export function queryInvisibleCells (w : World<Entity>){
+export function queryInvisibleCells (w : W){
     const result = w.with("position", "invisible")
-    if (result.entities.length > 0)
-        return Option.some(result.entities)
-    return Option.none()
+    return result.entities
 }
 
-export function queryProxyCells (w : World<Entity>){
+export function queryProxyCells (w : W){
     const result = w.with("position", "proxy")
-    if (result.entities.length > 0)
-        return Option.some(result.entities)
-    return Option.none()
+    return result.entities
 }
 
-export type EmptyPos = With<Entity, "position" | "empty">
-export type OptCollEmptyPos = Option.Option<Array<EmptyPos>>
 
-export function queryEmptyVisibleCells (w : World<Entity>) : Array<EmptyPos> {
-    const e = queryEmptyCells(w)
-    let arr  : Array<EmptyPos> = []
-    Option.map(e, empties => {
-        const f  = empties.filter((e) => {
-            if (e.invisible != null)
-                return false
-            return true
-        })
-        console.log("EMPTY CELLS LEN", empties.length)
-        console.log("RESULT LEN", f.length)
-        arr = f
-    })
-    return arr
-}
-
-export function queryEmptyHiddenCells (w : World<Entity>) : OptCollEmptyPos {
-    const e = queryEmptyCells(w)
-    Option.map(e, empties => {
-        const f  = empties.filter((e) => {
-            if (e.invisible != null)
-                return true
+export function queryEmptyVisibleCells (w : W) {
+    const f  = queryEmptyCells(w).filter((e) => {
+        if (e.invisible != null)
             return false
-        })
-        return Option.some(f)
+        return true
     })
-    return Option.none()
+    return f
 }
 
-export function queryBoard  (w : World<Entity>){
+export function queryEmptyHiddenCells (w : W)  {
+    const f  = queryEmptyCells(w).filter((e) => {
+        if (e.invisible != null)
+            return true
+        return false
+    })
+    return f
+}
+
+export type BoardOption =
+    | "NONE"
+    |  With<Entity, "board" | "size">
+
+export function queryBoard  (w : W){
     const result = w.with("size", "board")
+    let ret : BoardOption = "NONE"
     if (result.entities.length > 0){
         const firstEl = result.entities[0]
-        return Option.some(firstEl)
+        if (firstEl != null)
+            ret = firstEl
     }
-    return Option.none()
+    return ret
 }
 
 type EntPos = {position?: PositionComp}
 
-function comparePos (x:number, y:number,m : Array<EntPos>) : boolean{
-    let ret = false
-    let el
-    for (let i = 0; i < m.length; i++) {
-        el = m[i]
-        if (el != null)
-        {            
-            if (el.position != null)
-            {
-                if (posIsEqual(el.position, {x: x, y: y}))
-                {
-                    ret = true
-                    break;
-                }
-            }
-        }
-    }   
-    return ret
-}
     
-export function isMine (x: number,y : number, w : World<Entity>) : boolean{
+export function isMine (x: number,y : number, w : W) : boolean{
     const m = queryMinedCells(w)
     let ret = false
-    Option.map(m, coll => {ret = comparePos(x,y,coll)})
+    const p = {x: x, y: y}
+    const f = m.filter((e) => {return posIsEqual(p, e.position)})
+    if (f.length > 0)
+        ret = true
     return ret
 }
 
-export function isFlagged (x: number,y : number, w : World<Entity>) : boolean{
+export type FlagOption =
+    | "NONE"
+    | With<Entity, "position" | "flag">
+
+export function isFlagged (x: number,y : number, w : W) : FlagOption{
     const m = queryFlaggedCells(w)
-    let ret = false
-    Option.map(m, coll => {ret = comparePos(x,y,coll)})
+    let ret : FlagOption = "NONE"
+    const p = {x: x, y: y}
+    const f = m.find((e) => {return posIsEqual(p, e.position)})
+    if (f != null)
+        ret = f
     return ret
 }
 
-export function isInvisible (x: number,y : number, w : World<Entity>) : boolean{
+type InvisibleOption =
+    | "NONE"
+    | {some: With<Entity, "position" | "invisible">}
+
+export function isInvisible (x: number,y : number, w : W) : InvisibleOption{
     const m = queryInvisibleCells(w)
-    let ret = false
-    Option.map(m, coll => {ret = comparePos(x,y,coll)})
+    let ret : InvisibleOption = "NONE"
+    const p = {x: x, y: y}
+    const f = m.find((e) => {return posIsEqual(p, e.position)})
+    if (f != null)
+        ret = {some:f}
     return ret
 }
 
-export function isProxy (x: number,y : number, w : World<Entity>) : boolean{
+export function isProxy (x: number,y : number, w : W) : boolean{
     const m = queryProxyCells(w)
     let ret = false
-    Option.map(m, coll => {ret = comparePos(x,y,coll)})
+    const p = {x: x, y: y}
+    const f = m.find((e) => {return posIsEqual(p, e.position)})
+    if (f != null)
+        ret = true
     return ret
 }
 
-export function getProxy (x: number,y : number, w : World<Entity>) : Option.Option<number>{
+type ProxyOption =
+    | "NONE"
+    | number
+
+export function getProxy (x: number,y : number, w : W) : ProxyOption{
     const p = queryProxyCells(w)
-    let ret : Option.Option<number> = Option.none()
-    Option.map(p, proxies => {
-        const f = proxies.find((e) => {
-            return (posIsEqual(e.position, {x: x, y: y}))
-        })
-        if (f != null)
-            ret = Option.some(f.proxy)
-    })
+    let ret : number = -1
+    const pos = {x: x, y: y}
+    const f = p.find((e) => {return posIsEqual(e.position, pos)})
+    if (f != null)
+        ret = f.proxy
     return ret
 }
 
+export function hasVisibleMine(w : W){
+    const m = queryMinedCells(w)
+    const f = m.filter((mine) => {return (mine.invisible == null)})
+    return (f.length > 0)
+}
 
+export function allMinesAreFlagged(w : W){
+    const m = queryMinedCells(w)
+    const f = m.filter((mine) => {return (mine.flag != null)})
+    return (f.length == m.length)
+}
+
+export function allNonMinesAreVisible(w : W){
+    const m = queryInvisibleCells(w)
+    const f = m.filter((i) => {return (i.mine == null)})
+    return (f.length == 0)
+}

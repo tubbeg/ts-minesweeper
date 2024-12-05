@@ -1,16 +1,15 @@
 import * as React from "react"
 import { createRoot } from 'react-dom/client'
-import { makeWorld, systemUpdate } from "./board"
+import { makeWorld, MSEvent, systemUpdate } from "./board"
 import { number } from "prop-types";
 import { Entity } from "./types";
 import { World, With } from "miniplex";
-import { queryMinedCells, MineQuery, isInvisible, isMine, queryBoard, isFlagged, isProxy, getProxy } from "./query";
+import { queryMinedCells, isInvisible, isMine, queryBoard, isFlagged, isProxy, getProxy, queryGameState } from "./query";
 import { posIsEqual } from "./random";
-import {Option} from "effect"
 
-type MSEvent =
-    | "INSPECT"
-    | "FLAG"
+
+type W = World<Entity>
+
 type TUpdateState = (ev : MSEvent,x:number,y:number) => void;
 
 type ReactCellType =
@@ -126,7 +125,6 @@ const reactTable = (r : ReactWorld, rows : number, cols : number, cb : TUpdateSt
 }
 
 function proxyToString(nr : number) : ReactCellType{
-    console.log("Converting to string", nr)
     let ret : ReactCellType = "ERROR"
     switch (nr){
         case (1): ret = "1"; break;
@@ -143,66 +141,104 @@ function proxyToString(nr : number) : ReactCellType{
     return ret
 }
 
-
-function worldToArr(w : World<Entity>, y: number, board : With<Entity, "size" | "board">){
-    let arr : Array<ReactCellType> = []
-    for (let j = 0; j < board.size.b; j++)
-    {
-        arr[j] = "_"
-        if (isFlagged(j,y,w))
-            arr[j] = "☢"
-        if (isMine(j,y,w))
-            arr[j] = "💣"
-        if (isInvisible(j,y,w))
-            arr[j] = "?"
-        if (isProxy(j,y,w))
-        {
-            arr[j] = "ERROR"
-            Option.map(getProxy(j,y,w), nr => {
-                arr[j] = proxyToString(nr)
-            })
-        }
+function cellToReact (x:number,y:number,w : W) : ReactCellType{
+    let ret : ReactCellType = "_"
+    let i  = isInvisible(x,y,w)
+    let f = isFlagged(x,y,w)
+    if (isMine(x,y,w) && (i == "NONE")){
+        ret = "💣"
     }
-    return arr    
+    if (i != "NONE")
+    {
+        ret = "?"
+        if (f != "NONE")
+            ret = "☢"
+        
+    }
+    if (isProxy(x,y,w) && (i == "NONE"))
+    {
+        ret = "ERROR"
+        const p = getProxy(x,y,w)
+        if (p != "NONE")
+            ret = proxyToString(p)
+    }
+    return ret
 }
 
-function worldToReact (w : World<Entity>){
+
+function worldToArr(w : W, y: number, board : With<Entity, "size" | "board">) : Array<ReactCellType> {
+    const arr : Array<number> = Array.from(
+        { length: board.size.b },
+        (_, i) => i)
+    const narr :  Array<ReactCellType> = arr.map((e) =>  cellToReact(e,y,w))
+    return narr
+}
+
+function worldToReact (w : W){
     let arr : ReactWorld = []
-    Option.map(queryBoard(w), board => {
-        if (board != null)
-        {
-            for (let i = 0; i < board.size.a; i++)
-                arr[i] = worldToArr(w, i, board)
-        }
-    })
+    const board = queryBoard(w)
+    if (board != "NONE"){
+        for (let i = 0; i < board.size.a; i++)
+            arr[i] = worldToArr(w, i, board)   
+    }
     return arr
 }
 
-const defaultDifficulty = 30
+const defaultDifficulty = 15
 
 const defaultPos = {x: 0 , y: 0}
+
+type GameResult =
+    | "WON"
+    | "LOST"
+    | "NONE"
+
+type ReactGameState = {hasStarted:boolean, result:GameResult}
+const defaultState : ReactGameState = {hasStarted:false, result:"NONE"}
+
+function displayMatchResult (result : GameResult){
+    const win = <h1 className="box h2 has-text-primary"> YOU WON</h1>
+    const loss = <h1 className="box h2 has-text-danger"> YOU LOST</h1>
+    if (result == "WON")
+        return win
+    if (result == "LOST")
+        return loss
+    return (<div></div>)
+}
 
 export default function MyApp() {
     const [a,b] = [10,10]
     const d = defaultDifficulty
-    const [gameState, setGameState]  = React.useState({hasStarted: false})
+    const [gameState, setGameState]  = React.useState(defaultState)
     const [state, setState]  = React.useState({world: makeWorld(defaultPos,d,a,b)})
     const u = (ev : MSEvent, x: number,y: number) => {
         let w = state.world
         if (!(gameState.hasStarted) && (ev == "INSPECT")){
             w = makeWorld({x: x,y:y}, d, a,b)
-            setState((s) => {return {world: (systemUpdate(x,y,w))}})
-            setGameState((s) => {return {hasStarted:true}})
+            setState((s) => {return {world: (systemUpdate(ev,x,y,w))}})
+            setGameState((s) => {return {hasStarted:true, result:"NONE"}})
         }
         if (gameState.hasStarted)
         {
-            const updatedWorld = systemUpdate(x,y,w)
+            const updatedWorld = systemUpdate(ev,x,y,w)
             console.log(updatedWorld)
             setState((s) => {return {world: updatedWorld}})
+            const s = queryGameState(updatedWorld)
+            if (s != "NONE")
+            {
+                if (s.some != "NONE")
+                {
+                    console.log("YOU HAVE ", s.some)
+                    if (s.some.some == "WON")
+                        setGameState((s) => {return {hasStarted:true, result:"WON"}})
+                    else
+                        setGameState((s) => {return {hasStarted:true, result:"LOST"}})
+                }
+            }
         }
     }
     const restart = () => {
-        setGameState((s) => {return {hasStarted:false}})
+        setGameState((s) => {return {hasStarted:false, result:"NONE"}})
         const w = {world: makeWorld(defaultPos,d,a,b)}
         setState((s) => {return w})
     }
@@ -211,6 +247,7 @@ export default function MyApp() {
         <h1 className="box h2 has-text-primary"> Minesweeper</h1>
         <h1 className="box">Instructions: Click on a cell to flag it. Double click to inspect!</h1>
         <div className="box"><button onClick={(_) => {restart()}} className="button">Restart</button></div>
+        {displayMatchResult(gameState.result)}
         {reactTable(worldToReact(state.world),a,b,u)}
         </div>
     )

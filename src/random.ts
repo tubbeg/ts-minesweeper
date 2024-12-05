@@ -1,8 +1,6 @@
 import { PositionComp, Entity } from "./types";
-import { Option } from "effect";
 import { queryBoard } from "./query";
 import { World } from "miniplex";
-import { positive } from "effect/Schema";
 
 export function isNeighbour(p1 : PositionComp, p2 : PositionComp) : boolean{
     let xn1a = {x: p1.x - 1, y: p1.y}
@@ -50,18 +48,23 @@ function isNotUnique (p : PositionComp, l : Array<PositionComp>){
     return (f.length > 0)
 }
 
+type PositionOption =
+    | "NONE"
+    | PositionComp
+
 //there is loads of potential here for fun bugs :)
 function getRandomUniquePosition (x:number,y:number, l : Array<PositionComp>){
     const max = x * y
-    let p;
+    let p
+    let ret : PositionOption = "NONE"
     if (max > l.length){
         p = getRandomPosition(x,y)
         while(isNotUnique(p,l)){
             p = getRandomPosition(x,y)
         }
-        return Option.some(p)
+        ret = p
     }
-    return Option.none()
+    return ret
 }
 
 function isOkMine(init:PositionComp, compare: PositionComp){
@@ -72,16 +75,16 @@ function isOkMine(init:PositionComp, compare: PositionComp){
 
 function getRandomPositions (init : PositionComp, x:number,y:number, nr : number){
     let l : Array<PositionComp> = []
-    let p : Option.Option<PositionComp> = Option.none()
+    let p : PositionOption = "NONE"
     if (nr > 0){
         while (l.length < (nr - 8)){
             p = getRandomUniquePosition(x,y,l)
-            if (Option.isNone(p))
+            if (p == "NONE")
                 break;
             else
             {
-                if (isOkMine(p.value,init))
-                    l.push(p.value)
+                if (isOkMine(p,init))
+                    l.push(p)
             }
         }
     }
@@ -91,17 +94,15 @@ function getRandomPositions (init : PositionComp, x:number,y:number, nr : number
 
 export function addRandomMines(init:PositionComp,difficulty: number, w : World<Entity>){
     const bo = queryBoard(w)
-    Option.map(bo, board => {
-        const [x,y] = [board?.size.a,board?.size.b]
+    if (bo != "NONE"){
+        const [x,y] = [bo.size.a,bo.size.b]
         if (x != null && y != null){
             const pos = getRandomPositions(init,x,y,difficulty)
             pos.forEach(p => {
                 w.add({mine: "mine", invisible: "invisible", position: p})
             })
             console.log("a,b", x,y)
-            return w
         }
-        return w
-    })
+    }
     return w
 }

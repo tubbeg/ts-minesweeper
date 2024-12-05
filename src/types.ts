@@ -10,6 +10,12 @@ export type  FlagComp = "flagged"
 export type  SizeComp = {a: number, b: number}
 export type  InvisibleComp = "invisible"
 export type ProxyComp = number
+export type MatchResult =
+  | "WON"
+  | "LOST"
+export type StateComp =
+  | "NONE"
+  | {some:MatchResult}
 
 export type  Entity = {
     position?: PositionComp
@@ -20,5 +26,6 @@ export type  Entity = {
     empty?: EmptyComp 
     invisible?: InvisibleComp
     proxy?: ProxyComp
+    state?: StateComp
   }
   
